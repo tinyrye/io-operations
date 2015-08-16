@@ -1,0 +1,14 @@
+apply plugin: 'java'
+apply plugin: 'maven'
+
+group = "com.tinyrye"
+version = "1.0.0-SNAPSHOT"
+
+repositories {
+	mavenLocal()
+	mavenCentral()
+}
+
+compileJava {
+	options.compilerArgs.add('-Xlint:unchecked')
+}
