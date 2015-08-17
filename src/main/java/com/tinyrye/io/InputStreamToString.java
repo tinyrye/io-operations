@@ -27,12 +27,11 @@ public class InputStreamToString extends Operation
 	{
 		final InputStreamReader streamReader = new InputStreamReader(source.get());
 		final StringBuffer accumBuf = new StringBuffer();
-		final char[] perReadBuf = new char[1025];
-		int readLen = -1;
+		final char[] perReadBuf = new char[1024];
+		int readLen;
 		while ((readLen = streamReader.read(perReadBuf, 0, 1024)) != -1) {
 			if (readLen > 0) {
-				perReadBuf[readLen] = '\0';
-				accumBuf.append(perReadBuf);
+				accumBuf.append(perReadBuf, 0, readLen);
 			}
 		}
 		sourceString = accumBuf.toString();
