@@ -1,22 +1,39 @@
 package com.tinyrye.io;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Supplier;
 
-public class StreamCopy extends Operation
+public class StreamCopy implements Operation<Void>
 {
-	private ResourceLoader<InputStream> source;
-	private ResourceLoader<OutputStream> destination;
+	private Supplier<InputStream> source;
+	private Supplier<OutputStream> destination;
 	private int chunkSpecReadSize = 4096; 
 	
 	public StreamCopy(InputStream source, OutputStream destination) {
-		this(new ResourceLoader<InputStream>().set(source), new ResourceLoader<OutputStream>().set(destination));
+		this(() -> source, () -> destination);
 	}
 
-	public StreamCopy(ResourceLoader<InputStream> source, ResourceLoader<OutputStream> destination) {
+	public StreamCopy(Supplier<InputStream> source, Supplier<OutputStream> destination) {
 		this.source = source;
 		this.destination = destination;
+	}
+	
+	@Override
+	public void perform(List<Closeable> resourceBin) throws IOException {
+		InputStream source = this.source.get();
+		OutputStream destination = this.destination.get();
+		resourceBin.add(source);
+		resourceBin.add(destination);
+		byte[] transferChunk = new byte[chunkSpecReadSize];
+		int chunkReadSize = -1;
+		while ((chunkReadSize = source.read(transferChunk, 0, chunkSpecReadSize)) != -1) {
+			destination.write(transferChunk, 0, chunkReadSize);
+		}
 	}
 		
 	public int readChunksAt() {
@@ -26,21 +43,5 @@ public class StreamCopy extends Operation
 	public StreamCopy readChunksAt(int chunkSpecReadSize) {
 		this.chunkSpecReadSize = chunkSpecReadSize;
 		return this;
-	}
-	
-	@Override
-	protected void performOperation() throws IOException
-	{
-		byte[] transferChunk = new byte[chunkSpecReadSize];
-		int chunkReadSize = -1;
-		while ((chunkReadSize = source.get().read(transferChunk, 0, chunkSpecReadSize)) != -1) {
-			destination.get().write(transferChunk, 0, chunkReadSize);
-		}
-	}
-	
-	@Override
-	public void close() throws IOException {
-		if (source != null) { source.get().close(); source = null; }
-		if (destination != null) { destination.get().close(); destination = null; }
 	}
 }

@@ -1,25 +1,37 @@
 package com.tinyrye.io;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Supplier;
 
-public class InputStreamToByteArray extends Operation
+public class InputStreamToByteArray implements Operation<Byte[]>
 {
 	public static final int DEFAULT_PREALLOC = 32768;
 	public static final int DEFAULT_BURST = 1024;
 	
-	private ResourceLoader<InputStream> source;
-	private byte[] sourceBytes;
-	private int sourceCursor = -1;
+	private Supplier<InputStream> source;
 	private int burstSize = DEFAULT_BURST;
-	private int reallocSize = -1;
-
+	private int reallocSize = DEFAULT_BURST;
+	
 	public InputStreamToByteArray(InputStream source) {
-		this(new ResourceLoader<InputStream>().set(source));
+		this(() -> source);
 	}
 
-	public InputStreamToByteArray(ResourceLoader<InputStream> source) {
+	public InputStreamToByteArray(Supplier<InputStream> source) {
 		this.source = source;
+	}
+
+	@Override
+	public Byte[] perform(List<Closeable> resourceBin) throws IOException {
+		InputStream source = this.source.get();
+		resourceBin.add(source);
+		ReadBuffer sourceBuffer = new ReadBuffer(new byte[DEFAULT_PREALLOC]);
+		while (sourceBuffer.ensureEnoughAlloc(burstSize, reallocSize) != null) && sourceBuffer.readBurst(burstSize)) { }
+		sourceBuffer.truncate();
+		return sourceBuffer.sourceBytes;
 	}
 
 	public InputStreamToByteArray readBurstAt(int burstSize) {
@@ -32,67 +44,47 @@ public class InputStreamToByteArray extends Operation
 		return this;
 	}
 	
-	public InputStreamToByteArray prealloc(int preallocSize) {
-		sourceBytes = new byte[preallocSize];
-		return this;
-	}
-
-	@Override
-	protected void performOperation() throws IOException {
-		initAlloc();
-		while (ensureEnoughAlloc() && readBurst()) { }
-		truncate();
-	}
-	
-	@Override
-	public void close() throws IOException {
-		if (source != null) {
-			source.get().close();
-			source = null;
-		}
-	}
-	
-	public byte[] getBytes() {
-		return sourceBytes;
-	}
-	
-	protected void initAlloc() {
-		if (sourceBytes == null) sourceBytes = new byte[DEFAULT_PREALLOC];
-		if (reallocSize == -1) reallocSize = burstSize;
-		sourceCursor = 0;
-	}
-	
-	protected boolean ensureEnoughAlloc() {
-		int remainingRoomInSource = (sourceBytes.length - sourceCursor);
-		if (remainingRoomInSource < burstSize) realloc();
-		return true;
-	}
-	
-	public boolean readBurst() throws IOException {
-		int readLen = source.get().read(sourceBytes, sourceCursor, burstSize);
-		if (readLen > 0) sourceCursor += readLen;
-		return (readLen >= 0);
-	}
-	
-	protected void realloc()
+	protected static class ReadBuffer
 	{
-		byte[] existingGen = sourceBytes;
-		sourceBytes = new byte[existingGen.length + reallocSize];
-		for (int i = 0; i < sourceBytes.length; i++) {
-			sourceBytes[i] = (byte) 0;
+		public byte[] sourceBytes;
+		public int sourceCursor;
+		
+		public ReadBuffer(byte[] sourceBytes) {
+			this.sourceBytes = sourceBytes;
+			this.sourceCursor = 0;
 		}
-		System.arraycopy(existingGen, 0, sourceBytes, 0, existingGen.length);
-	}
 
-	/**
-	 * Trim to exact byte length of source.
-	 */
-	protected void truncate()
-	{
-		if (sourceCursor != sourceBytes.length - 1) {
+		public boolean readBurst(InputStream source, int burstSize) throws IOException {
+			int readLen = source.read(sourceBytes, sourceCursor, burstSize);
+			if (readLen > 0) sourceCursor += readLen;
+			return (readLen >= 0);
+		}
+
+		public boolean ensureEnoughAlloc(int burstSize, int reallocSize) {
+			int remainingRoomInSource = (sourceBytes.length - sourceCursor);
+			if (remainingRoomInSource < burstSize) realloc(reallocSize);
+			return true;
+		}
+
+		public void realloc(int reallocSize)
+		{
 			byte[] existingGen = sourceBytes;
-			sourceBytes = new byte[sourceCursor + 1];
-			System.arraycopy(existingGen, 0, sourceBytes, 0, sourceCursor + 1);
+			sourceBytes = new byte[existingGen.length + reallocSize];
+			for (int i = 0; i < sourceBytes.length; i++) {
+				sourceBytes[i] = (byte) 0;
+			}
+			System.arraycopy(existingGen, 0, sourceBytes, 0, existingGen.length);
+		}
+
+		/**
+		 * Trim to exact byte length of source.
+		 */
+		public void truncate() {
+			if (sourceCursor != sourceBytes.length) {
+				byte[] existingGen = sourceBytes;
+				sourceBytes = new byte[sourceCursor];
+				System.arraycopy(existingGen, 0, sourceBytes, 0, sourceCursor);
+			}
 		}
 	}
 }

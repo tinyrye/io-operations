@@ -1,48 +1,35 @@
 package com.tinyrye.io;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.util.List;
+import java.util.function.Supplier;
 
-public class InputStreamToString extends Operation
+public class InputStreamToString implements Operation
 {
-	private ResourceLoader<InputStream> source;
+	private Supplier<InputStream> source;
+	private String charset;
 	private String sourceString;
 	
 	public InputStreamToString(InputStream source) {
-		this(new ResourceLoader<InputStream>().set(source));
+		this(() -> source);
 	}
 
-	public InputStreamToString(ResourceLoader<InputStream> source) {
+	public InputStreamToString(Supplier<InputStream> source) {
 		this.source = source;
+	}
+
+	@Override
+	public List<Closeable> perform() throws IOException {
+		InputStreamToByteArray transform = new InputStreamToByteArray(source);
+		try { return transform.perform(); }
+		finally { sourceString = new String(transform.getBytes()); }
 	}
 
 	public String runToString() {
 		run();
 		return toString();
-	}
-	
-	@Override
-	protected void performOperation() throws IOException
-	{
-		final InputStreamReader streamReader = new InputStreamReader(source.get());
-		final StringBuffer accumBuf = new StringBuffer();
-		final char[] perReadBuf = new char[1024];
-		int readLen;
-		while ((readLen = streamReader.read(perReadBuf, 0, 1024)) != -1) {
-			if (readLen > 0) {
-				accumBuf.append(perReadBuf, 0, readLen);
-			}
-		}
-		sourceString = accumBuf.toString();
-	}
-	
-	@Override
-	public void close() throws IOException {
-		if (source != null) {
-			source.get().close();
-			source = null;
-		}
 	}
 	
 	@Override

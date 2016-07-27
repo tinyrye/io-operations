@@ -7,7 +7,7 @@ public class InputStreamToStringTest
 {
     @Test
     public void testRunToString() {
-        Assert.assertEquals("Na einai kalyteros anthropo apo ton patera tou!",
+        Assert.assertEquals("Na einai kalytera anthropo apo ton patera toy!",
             new InputStreamToString(getClass().getResourceAsStream("peterbishop.txt")).runToString());
     }
 }
