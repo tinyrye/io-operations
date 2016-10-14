@@ -4,7 +4,7 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Glorified Supplier but with supporting throws clause for IOException.
+ * Glorified {@link java.util.function.Supplier} but with IOException throws clause.
  */
 @FunctionalInterface
 public interface ResourceOpener<I extends Closeable>

@@ -2,21 +2,12 @@ package com.softwhistle.io;
 
 import java.io.IOException;
 
+@FunctionalInterface
 public interface ErrorHandler
 {
-	public static class Basic implements ErrorHandler {
-
-	}
-
-	public default boolean ignoreOnOpen(IOException ex) {
-		return false;
-	}
-
-	public default boolean ignoreFromOperation(IOException ex) {
-		return false;
-	}
-	
-	public default boolean ignoreOnClose(IOException ex) {
-		return false;
-	}
+	/**
+	 * @return whether the exception was handled and can be suppressed from
+	 * further processing.
+	 */
+	boolean handle(IOException ex, Phase phase);
 }
