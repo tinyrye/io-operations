@@ -59,60 +59,51 @@ public class Operations
 		try { op.run(); } catch (IOException ex) { handleOnOperation(handler, ex); }
 	}
 
-	public static <I extends Closeable> void openAndRun(ResourceOpener<I> resourceSupplier, ResourceConsumer<I> withConsumer) {
-		openAndRun(resourceSupplier, withConsumer, DEFER_HANDLER);
+	public static <I extends Closeable> ResourceOperateNode<I> with(I resource) {
+		return with(resource, DEFER_HANDLER);
 	}
 
-	public static <I extends Closeable> void openAndRun(ResourceOpener<I> resourceSupplier, ResourceConsumer<I> withConsumer, ErrorHandler handler) {
-		run(open(resourceSupplier, handler), withConsumer, handler);
+	public static <I extends Closeable> ResourceOperateNode<I> with(I resource, ErrorHandler handler) {
+		return new ResourceOperateNode<I>(resource, handler);
 	}
 
-	public static <I extends Closeable> void run(I resource, ResourceConsumer<I> op) {
-		run(resource, op, DEFER_HANDLER);
-	}
-
-	public static <I extends Closeable> void run(I resource, ResourceConsumer<I> op, ErrorHandler handler) {
-		try { op.accept(resource); }
-		catch (IOException ex) { handleOnOperation(handler, ex); }
-		finally { if (resource != null) close(handler, resource); }
-	}
-
-	public static <I extends Closeable,T> T openAndTransform(ResourceOpener<I> resourceSupplier, ResourceFunction<I,T> transformFunction) {
-		return openAndTransform(resourceSupplier, transformFunction, DEFER_HANDLER, null);
-	}
-
-	public static <I extends Closeable,T> T openAndTransform(ResourceOpener<I> resourceSupplier, ResourceFunction<I,T> transformFunction, ErrorHandler handler, Supplier<T> alternative) {
-		I resource = openOpt(resourceSupplier, handler);
-		if (resource == null) {
-			if (alternative != null) return alternative.get();
-			else throw new NoSuchElementException("No alternative to value to supply en lieu of unavailable resource.");
-		}
-		else return transform(resource, transformFunction, handler, alternative);
-	}
-
-	public static <I extends Closeable,T> T transform(I resource, ResourceFunction<I,T> transformFunction) {
-		return transform(resource, transformFunction, DEFER_HANDLER, null);
-	}
-
-	public static <I extends Closeable,T> T transform(I resource, ResourceFunction<I,T> transformFunction, ErrorHandler handler, Supplier<T> alternative) {
-		try { return transformFunction.apply(resource); }
-		catch (IOException ex) { return handleOnOperation(handler, alternative, ex); }
-		finally { close(handler, resource); }
-	}
-	
-	public static <I extends Closeable> I open(ResourceOpener<I> resourceSupplier) {
+	public static <I extends Closeable> ResourceOperateNode<I> open(ResourceOpener<I> resourceSupplier) {
 		return open(resourceSupplier, DEFER_HANDLER);
 	}
 
-	public static <I extends Closeable> I open(ResourceOpener<I> resourceSupplier, ErrorHandler handler) {
-		I resource = openOpt(resourceSupplier, handler);
-		if (resource == null) throw new RuntimeException("No resource available for operation.");
-		else return resource;
+	public static <I extends Closeable> ResourceOperateNode<I> open(ResourceOpener<I> resourceSupplier, ErrorHandler handler) {
+		try {
+			return new ResourceOperateNode<I>(resourceSupplier.open(), handler);
+		} catch (IOException ex) {
+			handleOnOpen(handler, ex);
+			return new ResourceOperateNode<I>();
+		}
 	}
 
-	public static <I extends Closeable> I openOpt(ResourceOpener<I> resourceSupplier, ErrorHandler handler) {
-		try { return resourceSupplier.open(); }
-		catch (IOException ex) { handleOnOpen(handler, ex); return null; }
+	public static <I extends Closeable,T> T apply(I resource, ResourceFunction<I, T> applier) {
+		return apply(resource, applier, DEFER_HANDLER);
+	}
+
+	public static <I extends Closeable,T> T apply(I resource, ResourceFunction<I, T> applier, ErrorHandler handler) {
+		try { return applier.apply(resource); }
+		catch (IOException ex) { handleOnOperation(handler, ex); return null; }
+		finally { if (resource != null) close(handler, resource); }
+	}
+
+	public static <I extends Closeable,T> T apply(I resource, ResourceFunction<I, T> applier, Supplier<T> alternative, ErrorHandler handler) {
+		try { return applier.apply(resource); }
+		catch (IOException ex) { return handleOnOperation(handler, alternative, ex); }
+		finally { if (resource != null) close(handler, resource); }
+	}
+
+	public static <I extends Closeable> void accept(I resource, ResourceConsumer<I> op) {
+		accept(resource, op, DEFER_HANDLER);
+	}
+
+	public static <I extends Closeable> void accept(I resource, ResourceConsumer<I> op, ErrorHandler handler) {
+		try { op.accept(resource); }
+		catch (IOException ex) { handleOnOperation(handler, ex); }
+		finally { if (resource != null) close(handler, resource); }
 	}
 
 	public static void close(ErrorHandler handler, Iterable<Closeable> resources) {
@@ -120,14 +111,11 @@ public class Operations
 	}
 
 	public static void close(ErrorHandler handler, Closeable ... resources) {
-		for (Closeable resource: resources) {
-			close(resource, handler);
-		}
+		for (Closeable resource: resources) close(resource, handler);
 	}
 
 	public static void close(Closeable resource, ErrorHandler handler) {
-		try { resource.close(); }
-		catch (IOException ex) { handleOnClose(handler, ex); }
+		try { resource.close(); } catch (IOException ex) { handleOnClose(handler, ex); }
 	}
 
 	protected static void handleOnOpen(ErrorHandler handler, IOException ex) {
